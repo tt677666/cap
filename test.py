@@ -1,58 +1,26 @@
 from scapy.all import *
 from scapy.layers import http
+def check_ack(pkt,ensure_ack):
+	print 222222222222
+	if pkt[TCP].ack == ensure_ack:
+		print pkt,111111111111111111
 
-def call_back(packet):
-	if not packet.haslayer(http.HTTPRequest):
-		#for p in packet:
-		print packet[TCP].flags
-		return
-	http_layer = packet.getlayer(http.HTTPRequest)
-	print type(http_layer.fields)
-		
+def http_header(packet):
 	
-		
+	if packet.haslayer(http.HTTPRequest):
+		next_ack =0
+		print 'woshihttprequest'
+		http_layer = packet.getlayer(http.HTTPRequest)
 
-sniff(filter='tcp port 80',prn=call_back,store=0)
+		if http_layer.fields['Path'].find('.flv?wsAuth')>0:
+			
+			print http_layer.fields['Host']+http_layer.fields['Path']
+			print len(packet) + 1,type(len(packet))
+			print packet[TCP].seq,type(packet[TCP].seq)
+ 			next_ack = len(packet) - 54 + packet[TCP].seq
+			print next_ack
+	#check_ack(packet,next_ack)
+	print next_ack
+	
 
-'''
-def writer_proc():
-	port=8081
-	host='127.0.0.1'
-	s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-	a =pcap.pcap()
-	
-	for l in a:
-		print '============================'
-		print type(l),type(l[0]),type(l[1])
-		print binascii.hexlify(l[1])
-		print '============================'
-		s.sendto(l[1],(host,port))
-		
-def reader_proc():
-	port=8081
-	s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-	s.bind(('127.0.0.1',port))
-	while True:
-		data,addr=s.recvfrom(20480)
-		
-		#print('Received:',data,'from',addr)
-		eth = dpkt.ethernet.Ethernet(data)
-		if not isinstance(eth.data, dpkt.ip.IP):
-			continue
-		ip = eth.data
-		if isinstance(ip.data, dpkt.tcp.TCP):
-			tcp = ip.data
-			#print 111111111111111
-			try:
-				request = dpkt.http.Request(tcp.data)
-			except (dpkt.dpkt.NeedData, dpkt.dpkt.UnpackError):
-				continue
-			#print type(repr(request))
-			#print time.asctime( time.localtime(time.time()) ),'HTTP request: %s\n' % repr(request)
-if __name__ == "__main__":
-	p1 = multiprocessing.Process(target = writer_proc, args = ())
-	p2 = multiprocessing.Process(target = reader_proc, args = ())
-	p1.start()
-	p2.start()
-'''
-	
+packet=sniff(filter='tcp port 80',prn=http_header,store=0)
