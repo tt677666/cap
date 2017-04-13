@@ -1,14 +1,16 @@
 from scapy.all import *
 from scapy.layers import http
+import struct
 next_ack = 0
 tcp_sport = 0
+dataflow = []
 def check_ack(pkt,ensure_ack):
 	print 222222222222
 	if pkt[TCP].ack == ensure_ack:
 		print pkt,111111111111111111
 
 def http_header(packet):
-	
+	global next_ack,dataflow
 	if packet.haslayer(http.HTTPRequest):
 		print 'woshihttprequest'
 		http_layer = packet.getlayer(http.HTTPRequest)
@@ -24,10 +26,17 @@ def http_header(packet):
 	#print 'seq is ',packet[TCP].seq
 	#if next_ack ==  packet[TCP].seq and tcp_sport == packet[TCP].sport:
 		#print 'flag is ',packet[TCP].flags
-		
-	if packet.haslayer(http.HTTPResponse):
-		http_layer1 = packet.getlayer(http.HTTPResponse)
-		for k in http_layer1:
-			print k
+	if packet[TCP].ack == next_ack:
+		if len(packet)> 60:
+			print type(hexdump(packet))
+			#bytes=struct.pack('i',hexdump(packet))
+			file_object=open('dy.flv','a')
+			print 1111111111111111222222222222
+			file_object.write(str(packet))
+			file_object.close()
+			dataflow.append(hexdump(packet))
+		if packet.haslayer(http.HTTPResponse):
+			dataflow = []
+			
 
-packet=sniff(filter='tcp port 80',prn=http_header,store=0)
+packet=sniff(filter='tcp port 80',prn=http_header,store=0) 
