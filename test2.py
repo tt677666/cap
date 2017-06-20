@@ -26,8 +26,8 @@ if os.path.exists('video_tmp1'):
 
 subprocess.Popen('tcpdump.exe -C 10 -W 2 -B 1 -n -nn -f -s 0 -w video_tmp  tcp port 80',shell=True)
 
-def open_pcap(filename,stop=True,output = 'packet'):
-	
+def open_pcap(filename,stop=True,output = 'packet',):
+	global file_info
 	print 2
 	try:
 		f = gzip.open(filename,"rb")
@@ -51,37 +51,45 @@ def open_pcap(filename,stop=True,output = 'packet'):
     
 	while True:
 		header_loc = f.tell()
-		try:
-			hdr = f.read(16)
-			
-			while len(hdr) < 16:
-				f.seek(header_loc)
-				if stop:
-					raise KeyboardInterrupt
-				time.sleep(1)
+		a = check_file_change()
+		#print a
+		if f.name == a:
+			try:
 				hdr = f.read(16)
-			
-			sec,usec,caplen,wirelen = struct.unpack(endian+"IIII", hdr)
-			body_loc = f.tell()
-			s = f.read(caplen)[:MTU]
-			
-			while len(s) < caplen:
-				f.seek(body_loc)
-				if stop:
-					raise KeyboardInterrupt
-				time.sleep(1)
+				
+				while len(hdr) < 16:
+					f.seek(header_loc)
+					if stop:
+						raise KeyboardInterrupt
+					time.sleep(1)
+					hdr = f.read(16)
+				
+				sec,usec,caplen,wirelen = struct.unpack(endian+"IIII", hdr)
+				body_loc = f.tell()
 				s = f.read(caplen)[:MTU]
-			
-			result = s,(sec,usec,wirelen)
-			if output == 'raw':
-				result = s
-			elif output == 'packet':
-				result = Ether(s)
-			yield result
-		except KeyboardInterrupt:
+				
+				while len(s) < caplen:
+					f.seek(body_loc)
+					if stop:
+						raise KeyboardInterrupt
+					time.sleep(1)
+					s = f.read(caplen)[:MTU]
+				
+				result = s,(sec,usec,wirelen)
+				if output == 'raw':
+					result = s
+				elif output == 'packet':
+					result = Ether(s)
+				yield result
+			except KeyboardInterrupt:
+				f.seek(header_loc)
+				break
+		else:
 			f.seek(header_loc)
+			print 'else'
+			f.close()
+			sys.exit()
 			break
-	
 def check_file_change():
 	global file_info
 	while True:
@@ -89,7 +97,6 @@ def check_file_change():
 			file0_size = os.path.getsize('video_tmp0')
 			if  file0_size - file_info['video_tmp0'] > 0 or file0_size - file_info['video_tmp0'] < 0:
 				file_info['video_tmp0'] = file0_size
-				print 'return'
 				return 'video_tmp0'
 				break
 		if os.path.exists('video_tmp1'):
@@ -137,6 +144,7 @@ def check_target_change(target_file):
 while True:
 
 	read_file = check_file_change()
-	a = open_pcap(read_file)
+	a = open_pcap(read_file,stop=True,output = 'packet')
 	for k in a:
 		print len(k),k.summary()
+	print 'filechange'
