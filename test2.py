@@ -24,7 +24,23 @@ if os.path.exists('video_tmp0'):
 if os.path.exists('video_tmp1'):
 	os.remove('video_tmp1')
 
-subprocess.Popen('tcpdump.exe -C 10 -W 2 -B 1 -n -nn -f -s 0 -w video_tmp  tcp port 80',shell=True)
+subprocess.Popen('tcpdump.exe -i 3 -C 1 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80',shell=True)
+
+
+def http_header(packet):
+	global next_ack,dataflow,tcp_flag
+	if packet.haslayer(http.HTTPRequest):
+		
+		http_layer = packet.getlayer(http.HTTPRequest)
+
+		if http_layer.fields['Path'].find('.flv?wsAuth')>0:
+
+			print http_layer.fields['Host']+http_layer.fields['Path']
+
+ 			next_ack = len(packet) - 54 + packet[TCP].seq
+			print 'next_ack is',next_ack
+
+			
 
 def open_pcap(filename,stop=True,output = 'packet'):
 	global file_info
@@ -45,45 +61,49 @@ def open_pcap(filename,stop=True,output = 'packet'):
 	hdr = f.read(20)
 	if len(hdr)<20:
 		raise Scapy_Exception("Invalid pcap file (too short)")
-	vermaj,vermin,tz,sig,snaplen,linktype = struct.unpack(endian+"HHIIII",hdr)
+	#vermaj,vermin,tz,sig,snaplen,linktype = struct.unpack(endian+"HHIIII",hdr)
 
-	linktype = linktype
+	#linktype = linktype
     
 	while True:
 		header_loc = f.tell()
 		b = check_file_change()
 		print b
 
+
 		try:
 			hdr = f.read(16)
 			
 			while len(hdr) < 16:
 				f.seek(header_loc)
-				if f.name == b:
+				if f.name != b:
+					print 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 					raise KeyboardInterrupt
-				time.sleep(1)
+				#time.sleep(1)
 				hdr = f.read(16)
 			
 			sec,usec,caplen,wirelen = struct.unpack(endian+"IIII", hdr)
 			body_loc = f.tell()
-			print caplen
+			print sec,usec,caplen,wirelen,MTU
 			s = f.read(caplen)[:MTU]
 			
 			while len(s) < caplen:
 				f.seek(body_loc)
-				if f.name == b:
+				if f.name != b:
+					print 222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222
 					raise KeyboardInterrupt
-				time.sleep(1)
+				#time.sleep(1)
 				s = f.read(caplen)[:MTU]
 			
 			result = s,(sec,usec,wirelen)
-			if output == 'raw':
-				result = s
-			elif output == 'packet':
+			#if output == 'raw':
+				#result = s
+			if output == 'packet':
 				result = Ether(s)
 			yield result
 		except KeyboardInterrupt:
-			f.seek(header_loc)
+			print 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
+			f.seek(0)
 			f.close()
 			break
 
@@ -142,6 +162,7 @@ while True:
 	read_file = check_file_change()
 	a = open_pcap(read_file,stop=True,output = 'packet')
 	for k in a:
-		print k.summary()
+		#http_header(k)
+		pass
 
 	print 'filechange'
