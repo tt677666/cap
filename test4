@@ -1,0 +1,155 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+
+import multiprocessing
+import sys,time,os,subprocess,gzip,struct
+reload(sys)
+sys.setdefaultencoding('utf-8')
+from scapy.all import *
+from scapy.data import MTU
+from scapy.layers import http
+
+def init_prog():
+	try:
+		os.system('taskkill /F /IM tcpdump.exe')
+	except:
+		pass
+
+	time.sleep(1)
+
+	if os.path.exists('video_tmp0'):
+		os.remove('video_tmp0')
+	if os.path.exists('video_tmp1'):
+		os.remove('video_tmp1')
+	if os.path.exists('config'):
+		os.remove('config')	
+	#os.system('tcpdump.exe -i 4 -C 3 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80')
+	
+def read_target():
+	while True: 
+		if os.path.exists('config'):
+			with open('config','r') as ff:
+				target = ff.read()
+				if target == 'video_tmp0':
+					return target
+				if target == 'video_tmp1':
+					return target
+				else:
+					continue
+def stream(filename):
+	
+	while True:
+		
+		try:			
+			f = open(filename,'rb')
+			
+			break
+		except:
+			continue
+		
+	magic = f.read(4)
+
+	print 'this time file name',f.name
+
+	hdr = f.read(20)
+	if len(hdr)<20:
+		raise Scapy_Exception("Invalid pcap file (too short)")
+
+	
+	while True:
+		header_loc = f.tell()
+
+
+
+		try:
+			hdr = f.read(16)
+			
+			while len(hdr) < 16:
+				f.seek(header_loc)
+				target_f = read_target()
+				if f.name != target_f:
+					filename = target_f
+					print filename
+					raise KeyboardInterrupt
+				#time.sleep(1)
+				hdr = f.read(16)
+			
+			caplen = struct.unpack('<L', bytes(hdr[8:12]))
+
+			body_loc = f.tell()
+			print caplen[0]
+			s = f.read(caplen[0])
+			
+			while len(s) < caplen[0]:
+				f.seek(body_loc)
+				target_f = read_target()
+				if f.name != target_f:
+					filename = target_f
+					print filename
+					raise KeyboardInterrupt
+				#time.sleep(1)
+				s = f.read(caplen[0])
+			
+
+			result = Ether(s)
+			#print result.summary()
+		except KeyboardInterrupt:
+			print '33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333'
+			f.close()
+			
+			break
+			
+	stream(filename)
+	
+def writer_proc():
+	print time.time(),'writer_proc'
+	file_info={}
+	file_info['video_tmp0'] = 0
+	file_info['video_tmp1'] = 0
+	#subprocess.Popen('tcpdump.exe -i 4 -C 3 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80',shell=True)
+	#os.system('tcpdump.exe -i 4 -C 3 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80')
+	while True:
+		if os.path.exists('video_tmp0'):
+			file0_size = os.path.getsize('video_tmp0')
+			if  file0_size - file_info['video_tmp0'] != 0:
+				file_info['video_tmp0'] = file0_size
+				with open('config','w') as f:
+					f.write('video_tmp0')
+
+		if os.path.exists('video_tmp1'):
+			file1_size = os.path.getsize('video_tmp1')
+			if file1_size - file_info['video_tmp1'] != 0:
+				file_info['video_tmp1'] = file1_size
+				with open('config','w') as f:
+					f.write('video_tmp1')
+
+		else:
+			continue  
+
+def reader_proc():
+	print time.time(),'reader_proc'
+	file = read_target()
+	stream(file)
+
+
+	
+if __name__ == "__main__":
+    q = multiprocessing.Queue()
+	
+    init = multiprocessing.Process(target=init_prog, args=())
+    init.start()
+    init.join()
+
+    subprocess.Popen('tcpdump.exe -i 4 -C 3 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80',shell=True)
+    time.sleep(1)
+	
+    writer = multiprocessing.Process(target=writer_proc, args=())  
+    writer.start()   
+
+	
+    reader = multiprocessing.Process(target=reader_proc, args=())  
+    reader.start()  
+
+    #reader.join()  
+    #writer.join()
