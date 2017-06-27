@@ -1,0 +1,242 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+
+import multiprocessing
+import sys,time,os,subprocess,gzip,struct
+reload(sys)
+sys.setdefaultencoding('utf-8')
+from scapy.all import *
+from scapy.data import MTU
+from scapy.layers import http
+
+next_ack = -111
+tcp_sport = 0
+dataflow = []
+tcp_flag = 0
+
+def search_list(seq,tmp_list1):
+	value = -1
+	for i in tmp_list1:
+		#print seq,i[TCP].seq
+		if seq == i[TCP].seq:
+			value == i[TCP].seq
+			return value
+			break
+		else:
+			continue
+	#print value
+	return value
+def order_packet(tmp_list):
+	new_tmp = []
+	#print tmp_list[0][TCP].seq,len(tmp_list[0])
+	next_seq = tmp_list[0][TCP].seq+len(tmp_list[0][TCP].payload)
+	new_tmp.append(tmp_list[0])
+	tmp_list.pop(0)
+	#print 222
+	while search_list(next_seq,tmp_list)>=0:
+		
+		
+		#print len(tmp_list)
+		print 'dddddddddddddddddd'
+		for k in tmp_list[:]:
+			#print k[TCP].seq,len(k)
+			if next_seq == k[TCP].seq:
+				new_tmp.append(k)
+				tmp_list.remove(k)
+				next_seq = k[TCP].seq+len(k[TCP].payload)
+				
+				break
+			else:
+				continue
+				
+def http_header(packet):
+	global next_ack,dataflow,tcp_flag
+	packet = Ether(packet)
+	
+	if packet.haslayer(http.HTTPRequest):
+		
+		http_layer = packet.getlayer(http.HTTPRequest)
+
+		if http_layer.fields['Path'].find('.flv?wsAuth')>0:
+
+			print http_layer.fields['Host']+http_layer.fields['Path']
+
+ 			next_ack = len(packet) - 54 + packet[TCP].seq
+			print 'next_ack is',next_ack
+	print packet[TCP].ack
+	if packet[TCP].ack == next_ack or packet[TCP].ack == (next_ack+1):
+		print 'tcp_flag is',tcp_flag
+		if 1 == tcp_flag:
+			if len(dataflow)<10:
+				
+				dataflow.append(packet)
+				print 'dataflow len is',len(dataflow)
+			else:
+				print 'else'
+				new_tmp1 = order_packet(dataflow)
+				for l in new_tmp1:
+					#print l[TCP].seq,len(l[TCP].payload)
+					print 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+					with open('dy.flv','ab') as f:
+						f.write(str(l[TCP].payload))
+				#exit()
+				#terminate()
+				sys.exit()
+		else:
+			if str(packet[TCP].payload).find('FLV')>=0:
+				dataflow.append(packet)
+				tcp_flag = 1
+				print 'tcp_flag is',tcp_flag
+				
+def init_prog():
+	try:
+		os.system('taskkill /F /IM tcpdump.exe')
+	except:
+		pass
+
+	time.sleep(1)
+
+	if os.path.exists('video_tmp0'):
+		os.remove('video_tmp0')
+	if os.path.exists('video_tmp1'):
+		os.remove('video_tmp1')
+	if os.path.exists('config'):
+		os.remove('config')	
+	#os.system('tcpdump.exe -i 4 -C 3 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80')
+	
+def read_target():
+	while True: 
+		if os.path.exists('config'):
+			with open('config','r') as ff:
+				target = ff.read()
+				if target == 'video_tmp0':
+					return target
+				if target == 'video_tmp1':
+					return target
+				else:
+					continue
+def stream(filename,pkt):
+	
+	while True:
+		
+		try:			
+			f = open(filename,'rb')
+			
+			break
+		except:
+			continue
+		
+	magic = f.read(4)
+
+	print 'this time file name',f.name
+
+	hdr = f.read(20)
+	if len(hdr)<20:
+		raise Scapy_Exception("Invalid pcap file (too short)")
+
+	
+	while True:
+		header_loc = f.tell()
+
+
+
+		try:
+			hdr = f.read(16)
+			
+			while len(hdr) < 16:
+				f.seek(header_loc)
+				target_f = read_target()
+				if f.name != target_f:
+					filename = target_f
+					print filename
+					raise KeyboardInterrupt
+				#time.sleep(1)
+				hdr = f.read(16)
+			
+			caplen = struct.unpack('<L', bytes(hdr[8:12]))
+
+			body_loc = f.tell()
+			#print caplen[0]
+			s = f.read(caplen[0])
+			
+			while len(s) < caplen[0]:
+				f.seek(body_loc)
+				target_f = read_target()
+				if f.name != target_f:
+					filename = target_f
+					print filename
+					raise KeyboardInterrupt
+				#time.sleep(1)
+				s = f.read(caplen[0])
+			
+
+			#result = Ether(s)
+			#print result.summary()
+			pkt.put(s,timeout=5)
+		except KeyboardInterrupt:
+			print '33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333'
+			f.close()
+			
+			break
+			
+	stream(filename)
+	
+def writer_proc():
+	print time.time(),'writer_proc'
+	file_info={}
+	file_info['video_tmp0'] = 0
+	file_info['video_tmp1'] = 0
+	while True:
+		if os.path.exists('video_tmp0'):
+			file0_size = os.path.getsize('video_tmp0')
+			if  file0_size - file_info['video_tmp0'] != 0:
+				file_info['video_tmp0'] = file0_size
+				with open('config','w') as f:
+					f.write('video_tmp0')
+
+		if os.path.exists('video_tmp1'):
+			file1_size = os.path.getsize('video_tmp1')
+			if file1_size - file_info['video_tmp1'] != 0:
+				file_info['video_tmp1'] = file1_size
+				with open('config','w') as f:
+					f.write('video_tmp1')
+
+		else:
+			continue  
+
+def reader_proc(q):
+	print time.time(),'reader_proc'
+	file = read_target()
+	stream(file,q)
+
+def detect_packet(q):
+	while True:
+		try:
+			packet = q.get(block = False)
+			
+			http_header(packet)
+		except:
+
+			continue
+	
+if __name__ == "__main__":
+    #freeze_support()
+    q = multiprocessing.Queue()
+	
+    init = multiprocessing.Process(target=init_prog, args=())
+    init.start()
+    init.join()
+
+    subprocess.Popen('tcpdump.exe -i 4 -C 50 -W 2 -B 1 -n -nn -f -w video_tmp -s 0 tcp port 80',shell=True)
+    time.sleep(1)
+	
+    writer = multiprocessing.Process(target=writer_proc, args=())  
+    writer.start()   
+
+	
+    reader = multiprocessing.Process(target=reader_proc, args=(q,))  
+    reader.start()
+
+    detect_pkt = multiprocessing.Process(target=detect_packet, args=(q,))
+    detect_pkt.start()
